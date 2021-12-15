@@ -17,7 +17,7 @@ class QuizService(private val token: String, private val username: String) {
     private val httpClient = HttpClient(CIO) {
         HttpResponseValidator {
             handleResponseException { exception ->
-                val clientException = exception as? ClientRequestException ?: return@handleResponseException
+                if (exception !is ClientRequestException) return@handleResponseException
                 val exceptionResponse = exception.response
                 when (exceptionResponse.status) {
                     HttpStatusCode.BadRequest -> echo(exceptionResponse.readText())
@@ -29,6 +29,10 @@ class QuizService(private val token: String, private val username: String) {
         }
         install(JsonFeature) {
             serializer = KotlinxSerializer()
+        }
+        defaultRequest {
+            header(HttpHeaders.Authorization, "bearer $token")
+            contentType(ContentType.Application.Json)
         }
     }
 
@@ -64,10 +68,7 @@ class QuizService(private val token: String, private val username: String) {
     private suspend fun getTestInfo(id: String) {
         val testId = id.toIntOrNull() ?: return echo("ID not a number")
         try {
-            val response = httpClient.get<HttpResponse>(Routes.GET_TEST + testId) {
-                contentType(ContentType.Application.Json)
-                header(HttpHeaders.Authorization, "bearer $token")
-            }
+            val response = httpClient.get<HttpResponse>(Routes.GET_TEST + testId)
             echo(response.receive<Test>().toString())
         } catch (cause: ResponseException) {
             cause.response
@@ -76,10 +77,7 @@ class QuizService(private val token: String, private val username: String) {
 
     private suspend fun profile(username: String) {
         try {
-            val response = httpClient.get<HttpResponse>(Routes.PROFILE + username) {
-                contentType(ContentType.Application.Json)
-                header(HttpHeaders.Authorization, "bearer $token")
-            }
+            val response = httpClient.get<HttpResponse>(Routes.PROFILE + username)
             echo(response.receive<User>().toString())
         } catch (cause: ResponseException) {
             cause.response
@@ -88,10 +86,7 @@ class QuizService(private val token: String, private val username: String) {
 
     private suspend fun getTests() {
         try {
-            val response = httpClient.get<TestsList>(Routes.GET_TESTS) {
-                contentType(ContentType.Application.Json)
-                header(HttpHeaders.Authorization, "bearer $token")
-            }
+            val response = httpClient.get<TestsList>(Routes.GET_TESTS)
             echo(response.toString())
         } catch (cause: ResponseException) {
             cause.response
@@ -101,10 +96,7 @@ class QuizService(private val token: String, private val username: String) {
     private suspend fun startTest(id: String) {
         val testId = id.toIntOrNull() ?: return echo("ID not a number")
         try {
-            val response = httpClient.get<HttpResponse>(Routes.GET_QUESTIONS + "/$testId") {
-                contentType(ContentType.Application.Json)
-                header(HttpHeaders.Authorization, "bearer $token")
-            }
+            val response = httpClient.get<HttpResponse>(Routes.GET_QUESTIONS + "/$testId")
             showTest(response.receive(), testId)
         } catch (cause: ResponseException) {
             cause.response
@@ -127,8 +119,6 @@ class QuizService(private val token: String, private val username: String) {
         }
         try {
             val response = httpClient.post<HttpResponse>(Routes.GET_RESULT) {
-                contentType(ContentType.Application.Json)
-                header(HttpHeaders.Authorization, "bearer $token")
                 body = Answers(answers.toList(), id, username)
             }
             val result = response.receive<AnswersResult>()
